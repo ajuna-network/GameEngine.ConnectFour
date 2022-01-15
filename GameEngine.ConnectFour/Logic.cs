@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace ConnectFourEngine
+namespace GameEngine.ConnectFour
 {
     public static class Logic
     {

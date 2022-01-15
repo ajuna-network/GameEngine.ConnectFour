@@ -1,13 +1,42 @@
-﻿using BaseGameEngine;
-using BaseGameEngine.Enums;
+﻿using Ajuna.GenericGameEngine;
+using Ajuna.GenericGameEngine.Enums;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace ConnectFourEngine
+namespace GameEngine.ConnectFour
 {
 
+    public class GameDelta
+    {
+        public byte GameState { get; }
+        public byte CurrentPlayer { get; }
+        public byte PosX { get; set; }
+        public byte PosY { get; set; }
+        public byte Stone { get; set; }
+
+        public GameDelta(byte gameState, byte currentPlayer)
+        {
+            GameState = gameState;
+            CurrentPlayer = currentPlayer;
+        }
+
+        public byte[] Encode()
+        {
+            return new byte[5] { GameState, CurrentPlayer, PosX, PosY, Stone };
+        }
+
+        public static GameDelta Decode(byte[] encoded)
+        {
+            return new GameDelta(encoded[0], encoded[1]) {
+
+                PosX = encoded[2],
+                PosY = encoded[3],
+                Stone = encoded[4]
+            };
+        }
+    }
 
     public class GameEngine : GenericGameEngine
     {
@@ -27,11 +56,7 @@ namespace ConnectFourEngine
 
         public override byte[] ExecuteAction(byte[] gameId, byte[] player, byte[] action)
         {
-            if (gameState != GameState.RUNNING)
-            {
-                return GetErrorCode(ErrorCode.WRONG_STATE);
-            }
-
+            // use validate action first
             var validateMessage = IsValidAction(player, action);
 
             if ((MessageCode)validateMessage[0] != MessageCode.OK)
@@ -39,7 +64,7 @@ namespace ConnectFourEngine
                 return validateMessage;
             }
 
-            var oldBoard = board;
+            var oldBoard = (byte[,])board.Clone();
 
             var playerId = GetPlayerId(player);
 
@@ -48,7 +73,24 @@ namespace ConnectFourEngine
                 return GetErrorCode(ErrorCode.BAD_ACTION);
             }
 
-            return GetStateDiff(StateDiffCode.ACTION, GetDelta(oldBoard, board));
+            // check for winner
+            if (Logic.Evaluate(board, (byte)playerId))
+            {
+                gameState = GameState.FINISHED;
+            } 
+            else if (Logic.Full(board))
+            {
+                gameState = GameState.FINISHED;
+            } 
+            else
+            {
+                // Set next players turn
+                SetNextPlayer();
+            }
+
+            GameDelta gameDelta = GetDelta(oldBoard, board);
+
+            return GetStateDiff(StateDiffCode.ACTION, gameDelta.Encode());
         }
 
         /// <summary>
@@ -63,6 +105,11 @@ namespace ConnectFourEngine
                 return GetErrorCode(ErrorCode.WRONG_STATE);
             }
 
+            var state = new byte[board.Length + 3];
+            state[0] = (byte)MessageCode.FULL_STATE;
+            state[1] = (byte) gameState;
+            state[2] = currentPlayer;
+
             var boardArray = new byte[board.Length];
 
             for (int x = 0; x < board.GetLength(0); x++)
@@ -73,7 +120,9 @@ namespace ConnectFourEngine
                 }
             }
 
-            return boardArray;
+            Array.Copy(boardArray, 0, state, 3, board.Length);
+
+            return state;
         }
 
         /// <summary>
@@ -143,6 +192,13 @@ namespace ConnectFourEngine
 
                 case StateDiffCode.ACTION:
 
+                    var gameDeltaArray = new byte[5];
+                    Array.Copy(message, 2, gameDeltaArray, 0, 5);
+                    var gameDelta = GameDelta.Decode(gameDeltaArray);
+
+                    gameState = (GameState) gameDelta.GameState;
+                    currentPlayer = gameDelta.CurrentPlayer;
+                    board[gameDelta.PosX, gameDelta.PosY] = gameDelta.Stone;
                     break;
             }
 
@@ -203,6 +259,11 @@ namespace ConnectFourEngine
         /// <returns></returns>
         public override byte[] IsValidAction(byte[] player, byte[] action)
         {
+            if (gameState != GameState.RUNNING)
+            {
+                return GetErrorCode(ErrorCode.WRONG_STATE);
+            }
+
             var playerId = GetPlayerId(player);
 
             if (currentPlayer != playerId)
@@ -237,25 +298,38 @@ namespace ConnectFourEngine
         }
 
         /// <summary>
+        /// Set next player
+        /// </summary>
+        internal void SetNextPlayer()
+        {
+            currentPlayer = currentPlayer < players.Count ? (byte) (currentPlayer + 1) : (byte) 1;
+        }
+
+        /// <summary>
         /// 
         /// </summary>
         /// <param name="oldBoard"></param>
         /// <param name="board"></param>
         /// <returns></returns>
-        private byte[] GetDelta(byte[,] oldBoard, byte[,] board)
+        private GameDelta GetDelta(byte[,] oldBoard, byte[,] board)
         {
+            var gameDelta = new GameDelta((byte)gameState, currentPlayer);
+
             for (int y = 0; y < oldBoard.GetLength(1); y++)
             {
                 for (int x = 0; x < oldBoard.GetLength(0); x++)
                 {
                     if (oldBoard[x, y] != this.board[x, y])
                     {
-                        return new byte[3] { (byte)x, (byte)y, this.board[x, y] };
+                        gameDelta.PosX = (byte)x;
+                        gameDelta.PosY = (byte)y;
+                        gameDelta.Stone = this.board[x, y];
+                        return gameDelta;
                     }
                 }
             }
 
-            return new byte[] { };
+            return null;
         }
 
         public override bool Same(object obj)
