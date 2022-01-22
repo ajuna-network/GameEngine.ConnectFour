@@ -7,37 +7,6 @@ using System.Text;
 
 namespace GameEngine.ConnectFour
 {
-
-    public class GameDelta
-    {
-        public byte GameState { get; }
-        public byte CurrentPlayer { get; }
-        public byte PosX { get; set; }
-        public byte PosY { get; set; }
-        public byte Stone { get; set; }
-
-        public GameDelta(byte gameState, byte currentPlayer)
-        {
-            GameState = gameState;
-            CurrentPlayer = currentPlayer;
-        }
-
-        public byte[] Encode()
-        {
-            return new byte[5] { GameState, CurrentPlayer, PosX, PosY, Stone };
-        }
-
-        public static GameDelta Decode(byte[] encoded)
-        {
-            return new GameDelta(encoded[0], encoded[1]) {
-
-                PosX = encoded[2],
-                PosY = encoded[3],
-                Stone = encoded[4]
-            };
-        }
-    }
-
     public class GameEngine : GenericGameEngine
     {
         internal byte[,] board;
@@ -64,21 +33,21 @@ namespace GameEngine.ConnectFour
                 return validateMessage;
             }
 
-            var oldBoard = (byte[,])board.Clone();
+            var newBoard = (byte[,])board.Clone();
 
             var playerId = GetPlayerId(player);
 
-            if (!Logic.AddStone(ref board, action[0], (byte)playerId))
+            if (!Logic.AddStone(ref newBoard, action[0], (byte)playerId))
             {
-                return GetErrorCode(ErrorCode.BAD_ACTION);
+                return Message.Error(ErrorCode.BAD_ACTION);
             }
 
             // check for winner
-            if (Logic.Evaluate(board, (byte)playerId))
+            if (Logic.Evaluate(newBoard, (byte)playerId))
             {
                 gameState = GameState.FINISHED;
             } 
-            else if (Logic.Full(board))
+            else if (Logic.Full(newBoard))
             {
                 gameState = GameState.FINISHED;
             } 
@@ -88,9 +57,9 @@ namespace GameEngine.ConnectFour
                 SetNextPlayer();
             }
 
-            GameDelta gameDelta = GetDelta(oldBoard, board);
+            GameDelta gameDelta = GetDelta(board, newBoard);
 
-            return GetStateDiff(StateDiffCode.ACTION, gameDelta.Encode());
+            return Message.StateDiff(StateDiffCode.ACTION, gameDelta.Encode());
         }
 
         /// <summary>
@@ -102,7 +71,7 @@ namespace GameEngine.ConnectFour
         {
             if (gameState == GameState.NONE)
             {
-                return GetErrorCode(ErrorCode.WRONG_STATE);
+                return Message.Error(ErrorCode.WRONG_STATE);
             }
 
             var state = new byte[board.Length + 3];
@@ -131,16 +100,9 @@ namespace GameEngine.ConnectFour
         /// <param name="gameId"></param>
         /// <param name="players"></param>
         /// <returns></returns>
-        public override byte[] NewInstance(byte[] gameId, List<byte[]> players)
+        public override byte[] NewInstance(byte[] gameId, byte gameEngineId, List<byte[]> players)
         {
-            if (gameState != GameState.NONE)
-            {
-                return GetErrorCode(ErrorCode.WRONG_STATE);
-            }
-
-            base.players = players;
-
-            return InitializeGame(gameId, players);
+            return InitializeGame(gameId, gameEngineId, players);
         }
 
         /// <summary>
@@ -149,7 +111,7 @@ namespace GameEngine.ConnectFour
         /// <param name="gameId"></param>
         /// <param name="message"></param>
         /// <returns></returns>
-        public override byte[] SyncronizeState(byte[] gameId, byte[] message)
+        public override byte[] SyncronizeState(byte[] gameId, byte gameEngineId, byte[] message)
         {
             if ((MessageCode)message[0] != MessageCode.STATE_DIFF)
             {
@@ -170,20 +132,20 @@ namespace GameEngine.ConnectFour
                      { 0, 0, 0, 0, 0, 0}
                     };
 
-                    currentPlayer = message[2];
-                    var playerCount = message[3];
-                    var playerIdLen = message[4];
+                    gameState = (GameState) message[2];
+
+                    currentPlayer = message[3];
+                    var playerCount = message[4];
+                    var playerIdLen = message[5];
 
                     players = new List<byte[]>();
 
                     for (int i = 0; i < playerCount; i++)
                     {
                         var playerId = new byte[playerIdLen];
-                        Array.Copy(message, 5 + i * playerIdLen, playerId, 0, playerIdLen);
+                        Array.Copy(message, 6 + i * playerIdLen, playerId, 0, playerIdLen);
                         players.Add(playerId);
                     }
-
-                    gameState = GameState.INITIALIZED;
                     break;
 
                 case StateDiffCode.RUNNING:
@@ -223,17 +185,17 @@ namespace GameEngine.ConnectFour
         /// <param name="gameId"></param>
         /// <param name="players"></param>
         /// <returns></returns>
-        public override byte[] InitializeGame(byte[] gameId, List<byte[]> players)
+        public override byte[] InitializeGame(byte[] gameId, byte gameEngineId, List<byte[]> players)
         {
             var playerCount = players.Count;
             var playerIdLen = players[0].Length;
             var playerStart = random.Next(playerCount) + 1;
 
-
-            var stateDiffArray = new byte[playerCount * playerIdLen + 1 + 2];
-            stateDiffArray[0] = (byte)playerStart; // starting player
-            stateDiffArray[1] = (byte)playerCount; // count players playing
-            stateDiffArray[2] = (byte)playerIdLen; // identification length
+            var stateDiffArray = new byte[playerCount * playerIdLen + 4];
+            stateDiffArray[0] = (byte)GameState.INITIALIZED; // game state
+            stateDiffArray[1] = (byte)playerStart; // starting player
+            stateDiffArray[2] = (byte)playerCount; // count players playing
+            stateDiffArray[3] = (byte)playerIdLen; // identification length
 
             for (int i = 0; i < playerCount; i++)
             {
@@ -243,10 +205,7 @@ namespace GameEngine.ConnectFour
                 }
             }
 
-            var stateDiff = GenericGameEngine.GetStateDiff(StateDiffCode.INIT, stateDiffArray);
-
-            // using syncronize to initialize, making sure we do the same as diff receivers.
-            SyncronizeState(gameId, stateDiff);
+            var stateDiff = Message.StateDiff(StateDiffCode.INIT, stateDiffArray);
 
             return stateDiff;
         }
@@ -261,19 +220,19 @@ namespace GameEngine.ConnectFour
         {
             if (gameState != GameState.RUNNING)
             {
-                return GetErrorCode(ErrorCode.WRONG_STATE);
+                return Message.Error(ErrorCode.WRONG_STATE);
             }
 
             var playerId = GetPlayerId(player);
 
             if (currentPlayer != playerId)
             {
-                return GetErrorCode(ErrorCode.WRONG_PLAYER);
+                return Message.Error(ErrorCode.WRONG_PLAYER);
             }
 
             if (!Logic.CanAddStone(board, action[0]))
             {
-                return GetErrorCode(ErrorCode.BAD_ACTION);
+                return Message.Error(ErrorCode.BAD_ACTION);
             }
 
             return new byte[] { (byte)MessageCode.OK };
