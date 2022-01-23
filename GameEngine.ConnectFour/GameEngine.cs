@@ -155,7 +155,12 @@ namespace GameEngine.ConnectFour
 
                     gameState = (GameState)gameDeltaAction.GameState;
                     currentPlayer = gameDeltaAction.CurrentPlayer;
-                    board[gameDeltaAction.PosX, gameDeltaAction.PosY] = gameDeltaAction.Stone;
+
+                    var positions = gameDeltaAction.Positions;
+                    positions.ForEach(p => {
+                        board[p[0], p[1]] = p[2];
+                    });
+
                     break;
             }
 
@@ -254,7 +259,7 @@ namespace GameEngine.ConnectFour
         /// <returns></returns>
         private GameDeltaAction GetDeltaAction(byte[,] oldBoard, byte[,] newBoard)
         {
-            GameDeltaAction gameDelta = new((byte)gameState, currentPlayer);
+            List<byte[]> positions = new();
 
             for (int y = 0; y < oldBoard.GetLength(1); y++)
             {
@@ -262,15 +267,12 @@ namespace GameEngine.ConnectFour
                 {
                     if (oldBoard[x, y] != newBoard[x, y])
                     {
-                        gameDelta.PosX = (byte)x;
-                        gameDelta.PosY = (byte)y;
-                        gameDelta.Stone = newBoard[x, y];
-                        return gameDelta;
+                        positions.Add(new byte[] { (byte)x , (byte)y, newBoard[x, y] });
                     }
                 }
             }
 
-            return null;
+            return new((byte)gameState, currentPlayer, positions);
         }
 
         public override bool Same(object obj)

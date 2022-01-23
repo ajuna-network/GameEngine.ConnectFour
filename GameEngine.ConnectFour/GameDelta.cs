@@ -68,31 +68,40 @@ namespace GameEngine.ConnectFour
 
     public class GameDeltaAction : GameDelta
     {
-        public byte PosX { get; set; }
-        public byte PosY { get; set; }
-        public byte Stone { get; set; }
+        public List<byte[]> Positions { get; set; }
 
-        public GameDeltaAction(byte gameState, byte currentPlayer) : base(gameState, currentPlayer)
+        public GameDeltaAction(byte gameState, byte currentPlayer, List<byte[]> positions) : base(gameState, currentPlayer)
         {
+            Positions = positions;
         }
 
         public override byte[] Encode()
         {
             List<byte> result = new(base.Encode());
-            result.Add(PosX);
-            result.Add(PosY);
-            result.Add(Stone);
+            result.Add((byte)Positions.Count);
+            if (Positions.Count > 0)
+            {
+                result.Add((byte)Positions[0].Length);
+                Positions.ForEach(p => result.AddRange(p));
+            }
             return result.ToArray();
         }
 
         public static GameDeltaAction Decode(byte[] encoded)
         {
-            return new GameDeltaAction(encoded[0], encoded[1]) {
+            var positionCount = encoded[2];
+            var positionLen = encoded[3];
 
-                PosX = encoded[2],
-                PosY = encoded[3],
-                Stone = encoded[4]
-            };
+            var positions = new List<byte[]>();
+
+            for (int i = 0; i < positionCount; i++)
+            {
+                var position = new byte[positionLen];
+                Array.Copy(encoded, 4 + i * positionLen, position, 0, positionLen);
+                positions.Add(position);
+            }
+
+            return new GameDeltaAction(encoded[0], encoded[1], positions);
         }
     }
 }

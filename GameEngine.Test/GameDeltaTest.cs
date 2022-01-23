@@ -34,11 +34,7 @@ namespace GameEngine.Test
         [Test]
         public void GameDeltaActionTest()
         {
-            GameDeltaAction oldDelta = new(1, 2) { 
-                PosX = 3,
-                PosY = 4,
-                Stone = 2
-            };
+            GameDeltaAction oldDelta = new(1, 2, new List<byte[]> { new byte[] {1,2,1 }, new byte[] { 3, 4, 2 } });
             var oldDeltaEncoded = oldDelta.Encode();
             var newDeltaEncoded = GameDeltaAction.Decode(oldDeltaEncoded).Encode();
             Assert.IsTrue(oldDeltaEncoded.SequenceEqual(newDeltaEncoded), "Encoding and decoding missmatch!");
