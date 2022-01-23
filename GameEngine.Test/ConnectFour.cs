@@ -8,6 +8,8 @@ namespace GameEngine.Test
 
     public class ConnectFourTest
     {
+        public byte GAME_ENGINE_ID = 0x00;
+
         public byte[] GAME_ID = new byte[] { 1, 2, 3, 4 };
 
         public byte[] PLAYER_1 = new byte[] { 1 };
@@ -25,7 +27,11 @@ namespace GameEngine.Test
             var _gameEngine1 = new ConnectFour.GameEngine(GAME_ID);
             // set random seed for deterministic results
             _gameEngine1.SetRandomSeed(new byte[] { 0, 0, 0, 1 });
-            _gameEngine1.NewInstance(GAME_ID, new List<byte[]> { PLAYER_1, PLAYER_2 });
+            var diff1 = _gameEngine1.NewInstance(GAME_ID, GAME_ENGINE_ID, new List<byte[]> { PLAYER_1, PLAYER_2 });
+            _gameEngine1.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff1);
+
+            // launch game
+            _gameEngine1.SyncronizeState(GAME_ID, GAME_ENGINE_ID, Message.StateDiff(StateDiffCode.RUNNING, new byte[] { 0 }));
 
             Assert.AreEqual(MessageCode.OK, (MessageCode)_gameEngine1.ValidateAction(GAME_ID, PLAYER_1, new byte[] { 0 })[0], "correct starting player");
             Assert.AreEqual(MessageCode.ERROR, (MessageCode)_gameEngine1.ValidateAction(GAME_ID, PLAYER_2, new byte[] { 0 })[0], "wrong starting player");
@@ -33,7 +39,11 @@ namespace GameEngine.Test
             var _gameEngine2 = new ConnectFour.GameEngine(GAME_ID);
             // set random seed for deterministic results
             _gameEngine2.SetRandomSeed(new byte[] { 0, 0, 0, 0 });
-            _gameEngine2.NewInstance(GAME_ID, new List<byte[]> { PLAYER_1, PLAYER_2 });
+            var diff2 = _gameEngine2.NewInstance(GAME_ID, GAME_ENGINE_ID, new List<byte[]> { PLAYER_1, PLAYER_2 });
+            _gameEngine2.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff2);
+
+            // launch game
+            _gameEngine2.SyncronizeState(GAME_ID, GAME_ENGINE_ID, Message.StateDiff(StateDiffCode.RUNNING, new byte[] { 0 }));
 
             Assert.AreEqual(MessageCode.ERROR, (MessageCode)_gameEngine2.ValidateAction(GAME_ID, PLAYER_1, new byte[] { 0 })[0], "wrong starting player");
             Assert.AreEqual(MessageCode.OK, (MessageCode)_gameEngine2.ValidateAction(GAME_ID, PLAYER_2, new byte[] { 0 })[0], "correct starting player");
@@ -55,21 +65,22 @@ namespace GameEngine.Test
             // set random seed for deterministic results
             _gameEngine1.SetRandomSeed(new byte[] { 0, 0, 0, 1 });
 
-            var diff1 = _gameEngine1.NewInstance(GAME_ID, new List<byte[]> { PLAYER_1, PLAYER_2 });
+            var diff1 = _gameEngine1.NewInstance(GAME_ID, GAME_ENGINE_ID, new List<byte[]> { PLAYER_1, PLAYER_2 });
+            _gameEngine1.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff1);
 
             Assert.AreEqual(GameState.INITIALIZED, _gameEngine1.gameState);
 
             var _gameEngine2 = new ConnectFour.GameEngine(GAME_ID);
-            _gameEngine2.SyncronizeState(GAME_ID, diff1);
+            _gameEngine2.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff1);
 
             Assert.AreEqual(GameState.INITIALIZED, _gameEngine2.gameState);
 
             Assert.True(_gameEngine1.Same(_gameEngine2));
 
-            var diff_running = GenericGameEngine.GetStateDiff(StateDiffCode.RUNNING, new byte[] { 0 });
+            var diff_running = Message.StateDiff(StateDiffCode.RUNNING, new byte[] { 0 });
 
-            _gameEngine1.SyncronizeState(GAME_ID, diff_running);
-            _gameEngine2.SyncronizeState(GAME_ID, diff_running);
+            _gameEngine1.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff_running);
+            _gameEngine2.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff_running);
 
             Assert.AreEqual(GameState.RUNNING, _gameEngine2.gameState);
 
@@ -101,20 +112,21 @@ namespace GameEngine.Test
             // set random seed for deterministic results
             _gameEngine1.SetRandomSeed(new byte[] { 0, 0, 0, 1 });
 
-            var diff1 = _gameEngine1.NewInstance(GAME_ID, new List<byte[]> { PLAYER_1, PLAYER_2 });
+            var diff1 = _gameEngine1.NewInstance(GAME_ID, GAME_ENGINE_ID, new List<byte[]> { PLAYER_1, PLAYER_2 });
+            _gameEngine1.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff1);
             Assert.AreEqual(GameState.INITIALIZED, _gameEngine1.gameState, "Not correct state after, new instances!");
 
-            _gameEngine2.SyncronizeState(GAME_ID, diff1);
+            _gameEngine2.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff1);
             Assert.AreEqual(GameState.INITIALIZED, _gameEngine2.gameState,"Not same state after syncronizing, second node!");
 
             Assert.True(_gameEngine1.Same(_gameEngine2), "Check of having both nodes equal failed.");
 
-            var diff_running = GenericGameEngine.GetStateDiff(StateDiffCode.RUNNING, new byte[] { 0 });
+            var diff_running = Message.StateDiff(StateDiffCode.RUNNING, new byte[] { 0 });
 
-            _gameEngine1.SyncronizeState(GAME_ID, diff_running);
+            _gameEngine1.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff_running);
             Assert.AreEqual(GameState.RUNNING, _gameEngine1.gameState);
 
-            _gameEngine2.SyncronizeState(GAME_ID, diff_running);
+            _gameEngine2.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff_running);
             Assert.AreEqual(GameState.RUNNING, _gameEngine2.gameState);
 
             Assert.True(_gameEngine1.Same(_gameEngine2), "Check of having both nodes equal failed.");
@@ -150,44 +162,58 @@ namespace GameEngine.Test
 
             // player 1 move 1
             var diff = _gameEngine1.ExecuteAction(GAME_ID, PLAYER_1, new byte[] { 0 });
+            _gameEngine1.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff);
             Assert.AreEqual(MessageCode.STATE_DIFF, (MessageCode)diff[0]);
-            _gameEngine2.SyncronizeState(GAME_ID, diff);
+
+            _gameEngine2.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff);
             Assert.True(_gameEngine1.Same(_gameEngine2), "Check of having both nodes equal failed.");
 
             // player 2 move 1
             diff = _gameEngine1.ExecuteAction(GAME_ID, PLAYER_2, new byte[] { 1 });
+            _gameEngine1.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff);
             Assert.AreEqual(MessageCode.STATE_DIFF, (MessageCode)diff[0]);
-            _gameEngine2.SyncronizeState(GAME_ID, diff);
+
+            _gameEngine2.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff);
             Assert.True(_gameEngine1.Same(_gameEngine2), "Check of having both nodes equal failed.");
 
             // player 1 move 2
             diff = _gameEngine1.ExecuteAction(GAME_ID, PLAYER_1, new byte[] { 0 });
+            _gameEngine1.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff);
             Assert.AreEqual(MessageCode.STATE_DIFF, (MessageCode)diff[0]);
-            _gameEngine2.SyncronizeState(GAME_ID, diff);
+
+            _gameEngine2.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff);
             Assert.True(_gameEngine1.Same(_gameEngine2), "Check of having both nodes equal failed.");
 
             // player 2 move 2
             diff = _gameEngine1.ExecuteAction(GAME_ID, PLAYER_2, new byte[] { 1 });
+            _gameEngine1.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff);
             Assert.AreEqual(MessageCode.STATE_DIFF, (MessageCode)diff[0]);
-            _gameEngine2.SyncronizeState(GAME_ID, diff);
+
+            _gameEngine2.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff);
             Assert.True(_gameEngine1.Same(_gameEngine2), "Check of having both nodes equal failed.");
 
             // player 1 move 3
             diff = _gameEngine1.ExecuteAction(GAME_ID, PLAYER_1, new byte[] { 0 });
+            _gameEngine1.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff);
             Assert.AreEqual(MessageCode.STATE_DIFF, (MessageCode)diff[0]);
-            _gameEngine2.SyncronizeState(GAME_ID, diff);
+
+            _gameEngine2.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff);
             Assert.True(_gameEngine1.Same(_gameEngine2), "Check of having both nodes equal failed.");
 
             // player 2 move 3
             diff = _gameEngine1.ExecuteAction(GAME_ID, PLAYER_2, new byte[] { 1 });
+            _gameEngine1.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff);
             Assert.AreEqual(MessageCode.STATE_DIFF, (MessageCode)diff[0]);
-            _gameEngine2.SyncronizeState(GAME_ID, diff);
+
+            _gameEngine2.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff);
             Assert.True(_gameEngine1.Same(_gameEngine2), "Check of having both nodes equal failed.");
 
             // player 1 move 4
             diff = _gameEngine1.ExecuteAction(GAME_ID, PLAYER_1, new byte[] { 0 });
+            _gameEngine1.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff);
             Assert.AreEqual(MessageCode.STATE_DIFF, (MessageCode)diff[0]);
-            _gameEngine2.SyncronizeState(GAME_ID, diff);
+
+            _gameEngine2.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff);
             Assert.True(_gameEngine1.Same(_gameEngine2), "Check of having both nodes equal failed.");
 
             // valid move

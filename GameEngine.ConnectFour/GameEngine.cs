@@ -57,9 +57,9 @@ namespace GameEngine.ConnectFour
                 SetNextPlayer();
             }
 
-            GameDelta gameDelta = GetDelta(board, newBoard);
+            GameDeltaAction deltaAction = GetDeltaAction(board, newBoard);
 
-            return Message.StateDiff(StateDiffCode.ACTION, gameDelta.Encode());
+            return Message.StateDiff(StateDiffCode.ACTION, deltaAction.Encode());
         }
 
         /// <summary>
@@ -132,20 +132,14 @@ namespace GameEngine.ConnectFour
                      { 0, 0, 0, 0, 0, 0}
                     };
 
-                    gameState = (GameState) message[2];
+                    var deltaInit = new byte[message.Length - 2];
+                    Array.Copy(message, 2, deltaInit, 0, deltaInit.Length);
 
-                    currentPlayer = message[3];
-                    var playerCount = message[4];
-                    var playerIdLen = message[5];
+                    var gameDeltaInit = GameDeltaInit.Decode(deltaInit);
 
-                    players = new List<byte[]>();
-
-                    for (int i = 0; i < playerCount; i++)
-                    {
-                        var playerId = new byte[playerIdLen];
-                        Array.Copy(message, 6 + i * playerIdLen, playerId, 0, playerIdLen);
-                        players.Add(playerId);
-                    }
+                    gameState = (GameState) gameDeltaInit.GameState;
+                    currentPlayer = gameDeltaInit.CurrentPlayer;
+                    players = gameDeltaInit.Players;
                     break;
 
                 case StateDiffCode.RUNNING:
@@ -154,13 +148,14 @@ namespace GameEngine.ConnectFour
 
                 case StateDiffCode.ACTION:
 
-                    var gameDeltaArray = new byte[5];
-                    Array.Copy(message, 2, gameDeltaArray, 0, 5);
-                    var gameDelta = GameDelta.Decode(gameDeltaArray);
+                    var deltaAction = new byte[message.Length - 2];
+                    Array.Copy(message, 2, deltaAction, 0, deltaAction.Length);
 
-                    gameState = (GameState) gameDelta.GameState;
-                    currentPlayer = gameDelta.CurrentPlayer;
-                    board[gameDelta.PosX, gameDelta.PosY] = gameDelta.Stone;
+                    var gameDeltaAction = GameDeltaAction.Decode(deltaAction);
+
+                    gameState = (GameState)gameDeltaAction.GameState;
+                    currentPlayer = gameDeltaAction.CurrentPlayer;
+                    board[gameDeltaAction.PosX, gameDeltaAction.PosY] = gameDeltaAction.Stone;
                     break;
             }
 
@@ -187,25 +182,12 @@ namespace GameEngine.ConnectFour
         /// <returns></returns>
         public override byte[] InitializeGame(byte[] gameId, byte gameEngineId, List<byte[]> players)
         {
-            var playerCount = players.Count;
-            var playerIdLen = players[0].Length;
-            var playerStart = random.Next(playerCount) + 1;
 
-            var stateDiffArray = new byte[playerCount * playerIdLen + 4];
-            stateDiffArray[0] = (byte)GameState.INITIALIZED; // game state
-            stateDiffArray[1] = (byte)playerStart; // starting player
-            stateDiffArray[2] = (byte)playerCount; // count players playing
-            stateDiffArray[3] = (byte)playerIdLen; // identification length
+            var playerStart = random.Next(players.Count()) + 1;
 
-            for (int i = 0; i < playerCount; i++)
-            {
-                for (int j = 0; j < playerIdLen; j++)
-                {
-                    stateDiffArray[(i * playerIdLen) + j + 3] = players[i][j];
-                }
-            }
+            GameDeltaInit gameDeltaInit = new((byte)GameState.INITIALIZED, (byte) playerStart, players);
 
-            var stateDiff = Message.StateDiff(StateDiffCode.INIT, stateDiffArray);
+            var stateDiff = Message.StateDiff(StateDiffCode.INIT, gameDeltaInit.Encode());
 
             return stateDiff;
         }
@@ -268,21 +250,21 @@ namespace GameEngine.ConnectFour
         /// 
         /// </summary>
         /// <param name="oldBoard"></param>
-        /// <param name="board"></param>
+        /// <param name="newBoard"></param>
         /// <returns></returns>
-        private GameDelta GetDelta(byte[,] oldBoard, byte[,] board)
+        private GameDeltaAction GetDeltaAction(byte[,] oldBoard, byte[,] newBoard)
         {
-            var gameDelta = new GameDelta((byte)gameState, currentPlayer);
+            GameDeltaAction gameDelta = new((byte)gameState, currentPlayer);
 
             for (int y = 0; y < oldBoard.GetLength(1); y++)
             {
                 for (int x = 0; x < oldBoard.GetLength(0); x++)
                 {
-                    if (oldBoard[x, y] != this.board[x, y])
+                    if (oldBoard[x, y] != newBoard[x, y])
                     {
                         gameDelta.PosX = (byte)x;
                         gameDelta.PosY = (byte)y;
-                        gameDelta.Stone = this.board[x, y];
+                        gameDelta.Stone = newBoard[x, y];
                         return gameDelta;
                     }
                 }
