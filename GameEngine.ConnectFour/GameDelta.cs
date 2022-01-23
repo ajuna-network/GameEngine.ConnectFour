@@ -6,12 +6,10 @@ namespace GameEngine.ConnectFour
     public abstract class GameDelta
     {
         public byte GameState { get; }
-        public byte CurrentPlayer { get; }
 
-        public GameDelta(byte gameState, byte currentPlayer)
+        public GameDelta(byte gameState)
         {
             GameState = gameState;
-            CurrentPlayer = currentPlayer;
         }
 
         public virtual byte[] Encode()
@@ -19,20 +17,34 @@ namespace GameEngine.ConnectFour
             List<byte> result = new()
             {
                 GameState,
-                CurrentPlayer
             };
             return result.ToArray();
         }
     }
 
+    public class GameDeltaRunning : GameDelta
+    {
+        public GameDeltaRunning(byte gameState) : base(gameState)
+        {
+        }
+
+        public static GameDeltaRunning Decode(byte[] encoded)
+        {
+            return new GameDeltaRunning(encoded[0]);
+        }
+
+    }
+
     public class GameDeltaInit : GameDelta
     {
-        public byte PlayerCount { get; set; }
-        public byte PlayerIdLen { get; set; }
-        public List<byte[]> Players { get; set; }
+        public byte CurrentPlayer { get; }
+        public byte PlayerCount { get; }
+        public byte PlayerIdLen { get; }
+        public List<byte[]> Players { get; }
 
-        public GameDeltaInit(byte gameState, byte currentPlayer, List<byte[]> players) : base(gameState, currentPlayer)
+        public GameDeltaInit(byte gameState, byte currentPlayer, List<byte[]> players) : base(gameState)
         {
+            CurrentPlayer = currentPlayer;
             Players = players;
             PlayerCount = (byte)players.Count;
             PlayerIdLen = (byte) players[0].Length;
@@ -41,6 +53,7 @@ namespace GameEngine.ConnectFour
         public override byte[] Encode()
         {
             List<byte> result = new(base.Encode());
+            result.Add(CurrentPlayer);
             result.Add(PlayerCount);
             result.Add(PlayerIdLen);
             Players.ForEach(p => result.AddRange(p));
@@ -68,16 +81,19 @@ namespace GameEngine.ConnectFour
 
     public class GameDeltaAction : GameDelta
     {
+        public byte CurrentPlayer { get; }
         public List<byte[]> Positions { get; set; }
 
-        public GameDeltaAction(byte gameState, byte currentPlayer, List<byte[]> positions) : base(gameState, currentPlayer)
+        public GameDeltaAction(byte gameState, byte currentPlayer, List<byte[]> positions) : base(gameState)
         {
+            CurrentPlayer = currentPlayer;
             Positions = positions;
         }
 
         public override byte[] Encode()
         {
             List<byte> result = new(base.Encode());
+            result.Add((byte)CurrentPlayer);
             result.Add((byte)Positions.Count);
             if (Positions.Count > 0)
             {

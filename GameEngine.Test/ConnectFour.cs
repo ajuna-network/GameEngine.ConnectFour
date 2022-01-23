@@ -1,5 +1,6 @@
 using Ajuna.GenericGameEngine;
 using Ajuna.GenericGameEngine.Enums;
+using GameEngine.ConnectFour;
 using NUnit.Framework;
 using System.Collections.Generic;
 
@@ -16,6 +17,8 @@ namespace GameEngine.Test
 
         public byte[] PLAYER_2 = new byte[] { 2 };
 
+        public byte[] DELTA_RUN = new GameDeltaRunning((byte)GameState.INITIALIZED).Encode();
+
         [SetUp]
         public void Setup()
         {
@@ -31,7 +34,7 @@ namespace GameEngine.Test
             _gameEngine1.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff1);
 
             // launch game
-            _gameEngine1.SyncronizeState(GAME_ID, GAME_ENGINE_ID, Message.StateDiff(StateDiffCode.RUNNING, new byte[] { 0 }));
+            _gameEngine1.SyncronizeState(GAME_ID, GAME_ENGINE_ID, Message.StateDiff(StateDiffCode.RUNNING, DELTA_RUN));
 
             Assert.AreEqual(MessageCode.OK, (MessageCode)_gameEngine1.ValidateAction(GAME_ID, PLAYER_1, new byte[] { 0 })[0], "correct starting player");
             Assert.AreEqual(MessageCode.ERROR, (MessageCode)_gameEngine1.ValidateAction(GAME_ID, PLAYER_2, new byte[] { 0 })[0], "wrong starting player");
@@ -43,7 +46,7 @@ namespace GameEngine.Test
             _gameEngine2.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff2);
 
             // launch game
-            _gameEngine2.SyncronizeState(GAME_ID, GAME_ENGINE_ID, Message.StateDiff(StateDiffCode.RUNNING, new byte[] { 0 }));
+            _gameEngine2.SyncronizeState(GAME_ID, GAME_ENGINE_ID, Message.StateDiff(StateDiffCode.RUNNING, DELTA_RUN));
 
             Assert.AreEqual(MessageCode.ERROR, (MessageCode)_gameEngine2.ValidateAction(GAME_ID, PLAYER_1, new byte[] { 0 })[0], "wrong starting player");
             Assert.AreEqual(MessageCode.OK, (MessageCode)_gameEngine2.ValidateAction(GAME_ID, PLAYER_2, new byte[] { 0 })[0], "correct starting player");
@@ -77,10 +80,8 @@ namespace GameEngine.Test
 
             Assert.True(_gameEngine1.Same(_gameEngine2));
 
-            var diff_running = Message.StateDiff(StateDiffCode.RUNNING, new byte[] { 0 });
-
-            _gameEngine1.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff_running);
-            _gameEngine2.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff_running);
+            _gameEngine1.SyncronizeState(GAME_ID, GAME_ENGINE_ID, Message.StateDiff(StateDiffCode.RUNNING, DELTA_RUN));
+            _gameEngine2.SyncronizeState(GAME_ID, GAME_ENGINE_ID, Message.StateDiff(StateDiffCode.RUNNING, DELTA_RUN));
 
             Assert.AreEqual(GameState.RUNNING, _gameEngine2.gameState);
 
@@ -121,7 +122,7 @@ namespace GameEngine.Test
 
             Assert.True(_gameEngine1.Same(_gameEngine2), "Check of having both nodes equal failed.");
 
-            var diff_running = Message.StateDiff(StateDiffCode.RUNNING, new byte[] { 0 });
+            var diff_running = Message.StateDiff(StateDiffCode.RUNNING, Message.StateDiff(StateDiffCode.RUNNING, DELTA_RUN));
 
             _gameEngine1.SyncronizeState(GAME_ID, GAME_ENGINE_ID, diff_running);
             Assert.AreEqual(GameState.RUNNING, _gameEngine1.gameState);
