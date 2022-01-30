@@ -15,8 +15,8 @@ namespace GameEngine.ConnectFour
 
         public GameEngine(byte[] gameId)
         {
-            base.gameId = gameId;
-         }
+            base.GameId = gameId;
+        }
 
         public override byte[][] BlockTick()
         {
@@ -45,11 +45,11 @@ namespace GameEngine.ConnectFour
             // check for winner
             if (Logic.Evaluate(newBoard, (byte)playerId))
             {
-                gameState = GameState.FINISHED;
+                GameState = GameState.FINISHED;
             } 
             else if (Logic.Full(newBoard))
             {
-                gameState = GameState.FINISHED;
+                GameState = GameState.FINISHED;
             } 
             else
             {
@@ -69,14 +69,14 @@ namespace GameEngine.ConnectFour
         /// <returns></returns>
         public override byte[] GetState(byte[] gameId)
         {
-            if (gameState == GameState.NONE)
+            if (GameState == GameState.NONE)
             {
                 return Message.Error(ErrorCode.WRONG_STATE);
             }
 
             var state = new byte[board.Length + 3];
             state[0] = (byte)MessageCode.FULL_STATE;
-            state[1] = (byte) gameState;
+            state[1] = (byte)GameState;
             state[2] = currentPlayer;
 
             var boardArray = new byte[board.Length];
@@ -137,13 +137,13 @@ namespace GameEngine.ConnectFour
 
                     var gameDeltaInit = GameDeltaInit.Decode(deltaInit);
 
-                    gameState = (GameState) gameDeltaInit.GameState;
+                    GameState = (GameState) gameDeltaInit.GameState;
                     currentPlayer = gameDeltaInit.CurrentPlayer;
-                    players = gameDeltaInit.Players;
+                    Players = gameDeltaInit.Players;
                     break;
 
                 case StateDiffCode.RUNNING:
-                    gameState = GameState.RUNNING;
+                    GameState = GameState.RUNNING;
                     break;
 
                 case StateDiffCode.ACTION:
@@ -153,7 +153,7 @@ namespace GameEngine.ConnectFour
 
                     var gameDeltaAction = GameDeltaAction.Decode(deltaAction);
 
-                    gameState = (GameState)gameDeltaAction.GameState;
+                    GameState = (GameState)gameDeltaAction.GameState;
                     currentPlayer = gameDeltaAction.CurrentPlayer;
 
                     var positions = gameDeltaAction.Positions;
@@ -188,7 +188,7 @@ namespace GameEngine.ConnectFour
         public override byte[] InitializeGame(byte[] gameId, byte gameEngineId, List<byte[]> players)
         {
 
-            var playerStart = random.Next(players.Count()) + 1;
+            var playerStart = Random.Next(players.Count()) + 1;
 
             GameDeltaInit gameDeltaInit = new((byte)GameState.INITIALIZED, (byte) playerStart, players);
 
@@ -205,7 +205,7 @@ namespace GameEngine.ConnectFour
         /// <returns></returns>
         public override byte[] IsValidAction(byte[] player, byte[] action)
         {
-            if (gameState != GameState.RUNNING)
+            if (GameState != GameState.RUNNING)
             {
                 return Message.Error(ErrorCode.WRONG_STATE);
             }
@@ -232,9 +232,9 @@ namespace GameEngine.ConnectFour
         /// <returns></returns>
         internal int GetPlayerId(byte[] player)
         {
-            for (int i = 0; i < players.Count; i++)
+            for (int i = 0; i < Players.Count; i++)
             {
-                if (players[i].SequenceEqual(player))
+                if (Players[i].SequenceEqual(player))
                 {
                     return i + 1;
                 }
@@ -248,7 +248,7 @@ namespace GameEngine.ConnectFour
         /// </summary>
         internal void SetNextPlayer()
         {
-            currentPlayer = currentPlayer < players.Count ? (byte) (currentPlayer + 1) : (byte) 1;
+            currentPlayer = currentPlayer < Players.Count ? (byte) (currentPlayer + 1) : (byte) 1;
         }
 
         /// <summary>
@@ -272,7 +272,7 @@ namespace GameEngine.ConnectFour
                 }
             }
 
-            return new((byte)gameState, currentPlayer, positions);
+            return new((byte)GameState, currentPlayer, positions);
         }
 
         public override bool Same(object obj)
