@@ -122,6 +122,18 @@ namespace GameEngine.ConnectFour
 
             return true;
         }
-    }
 
+        public static byte[,] NewBoard()
+        {
+            return new byte[7, 6] {
+                     { 0, 0, 0, 0, 0, 0},
+                     { 0, 0, 0, 0, 0, 0},
+                     { 0, 0, 0, 0, 0, 0},
+                     { 0, 0, 0, 0, 0, 0},
+                     { 0, 0, 0, 0, 0, 0},
+                     { 0, 0, 0, 0, 0, 0},
+                     { 0, 0, 0, 0, 0, 0}
+                    };
+        }
+    }
 }

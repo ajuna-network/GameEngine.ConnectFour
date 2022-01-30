@@ -122,15 +122,7 @@ namespace GameEngine.ConnectFour
             {
                 case StateDiffCode.INIT:
 
-                    board = new byte[7, 6] {
-                     { 0, 0, 0, 0, 0, 0},
-                     { 0, 0, 0, 0, 0, 0},
-                     { 0, 0, 0, 0, 0, 0},
-                     { 0, 0, 0, 0, 0, 0},
-                     { 0, 0, 0, 0, 0, 0},
-                     { 0, 0, 0, 0, 0, 0},
-                     { 0, 0, 0, 0, 0, 0}
-                    };
+                    board = Logic.NewBoard();
 
                     var deltaInit = new byte[message.Length - 2];
                     Array.Copy(message, 2, deltaInit, 0, deltaInit.Length);
